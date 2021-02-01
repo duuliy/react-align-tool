@@ -36,27 +36,31 @@
       background-color: #fff;
     }
 
-    .table-body tr .active,
-    .table-body tr.active {
-      background-color: #DDEEFF;
-    }
-
     table {
       width: 100%;
       height: 100%;
+
+      tr .active,
+      td .active {
+        background-color: #DDEEFF;
+      }
 
       td {
         border: 1px solid #ECECEC;
         border-right: 0;
         border-top: 0;
 
-        p {
+        div {
           height: 100%;
           box-sizing: border-box;
           padding: 5px;
           text-align: justify;
           word-break: break-all;
           min-height: 27px;
+
+          &:focus {
+            outline: none;
+          }
         }
 
         &:first-child {
