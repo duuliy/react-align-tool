@@ -113,12 +113,10 @@ const Header = () => {
 }
 
 const Content = ({ sourceList, targetList, onChangeSource, onChangeTarget }) => {
-  const count = useRef(0)
   const [coordinate, setCoordinate] = useState({ direction: '', ids: [] })
   const maxLength = Math.max(sourceList.length, targetList.length)
 
   const changeIsContentEditable = (ref, boo, boxShadow, event) => {
-    console.log(666)
     ref.current.contentEditable = boo
     ref.current.style.boxShadow = boxShadow
     if (event) {
@@ -146,9 +144,17 @@ const Content = ({ sourceList, targetList, onChangeSource, onChangeTarget }) => 
     setCoordinate(param)
   }
 
-  const getClickFunc = (e, ref, direction, id) => {
-    // console.log(e.shiftKey) boo 组合事件
-    combinationEvent(e, ref, direction, id)
+  const getClickNodes = (e, id) => {
+    e.preventDefault()
+    e.stopPropagation()
+    console.log(e)
+    // console.log(e.target.getAttribute('data-bar'))
+    // console.log(e.shiftKey) boo shift组合事件 多选
+    setCoordinate({
+      direction: e.target.getAttribute('data-bar'),
+      ids: [id]
+    })
+    // combinationEvent(e, ref, direction, id)
     // count.current += 1
     // setTimeout(() => {
     //   console.log(count.current)
@@ -166,10 +172,10 @@ const Content = ({ sourceList, targetList, onChangeSource, onChangeTarget }) => 
     const _ref = createRef(null)
 
     return <td className={coordinate.direction === ALL && coordinate.ids.includes(id) ? 'selected' : null}
-      ref={_ref}
-      onClick={(e) => onClick(e, _ref)}
+      // ref={_ref}
+      // onClick={(e) => onClick(e, _ref)}
     >
-      <span className="number">{id + 1}</span>
+      <span className="number" data-bar={ALL}>{id + 1}</span>
     </td>
   }
 
@@ -184,26 +190,28 @@ const Content = ({ sourceList, targetList, onChangeSource, onChangeTarget }) => 
 
     return <td className={className}>
       <div suppressContentEditableWarning
+        data-bar={direction}
         ref={_ref}
-        onClick={(e) => onClick(e, _ref)}
+        // onClick={(e) => onClick(e, _ref)}
+        // onClick={e => e.stopPropagation()}
         onDoubleClick={() => onDoubleClick(_ref)}
         // onDoubleClick={()=>console.log(666)}
         onBlur={() => onBlur(_ref)}
       >{text}</div>
     </td>
   }
-
+  // getAttribute
   return <section className={`${PrefixCls}-content-wrap`}>
     <div className={`${PrefixCls}-content`}>
       <table cellSpacing='0' cellPadding='0'>
         <tbody>
-          {new Array(maxLength).fill('').map((v, i) => <tr key={i}>
+          {new Array(maxLength).fill('').map((v, i) => <tr key={i} onClick={e => getClickNodes(e,i)}>
             <TdToSpan
-              onClick={(e, ref) => getClickFunc(e, ref, ALL, i)}
+              // onClick={(e, ref) => getClickFunc(e, ref, ALL, i)}
               id={i}
             />
             <TdToP
-              onClick={(e, ref) => getClickFunc(e, ref, SOURCE, i)}
+              // onClick={(e, ref) => getClickFunc(e, ref, SOURCE, i)}
               onDoubleClick={ref =>changeIsContentEditable(ref, true, 'inset 0 0 5px #1890ff', 'focus')}
               // onDoubleClick={()=>console.log(666)}
               onBlur={ref => updateData(ref, SOURCE, i)}
@@ -212,7 +220,7 @@ const Content = ({ sourceList, targetList, onChangeSource, onChangeTarget }) => 
               text={sourceList[i]}
             />
             <TdToP
-              onClick={(e, ref) => getClickFunc(e, ref, TARGET, i)}
+              // onClick={(e, ref) => getClickFunc(e, ref, TARGET, i)}
               onDoubleClick={ref => changeIsContentEditable(ref, true, 'inset 0 0 5px #1890ff', 'focus')}
               onBlur={ref => updateData(ref, TARGET, i)}
               id={i}
@@ -244,6 +252,8 @@ const Align = () => {
   }
 
   useEffect(() => {
+    // addEventListener('keydown' 键盘订阅
+    // onContextMenu 右键菜单
     getInit()
   }, [])
 
