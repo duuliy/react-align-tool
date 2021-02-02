@@ -7,10 +7,10 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const OptimizeCssAssetsPlugin = require("optimize-css-assets-webpack-plugin")
 const UglifyJsPlugin = require("uglifyjs-webpack-plugin")
 const HardSourceWebpackPlugin = require('hard-source-webpack-plugin')
-const { port, version } = require("./config")
 
 const env = process.env.NODE_ENV || 'dev'
 const isDev = env === 'dev'
+const version= '1.0.0'
 const lessModuleRegex = /\.module\.less$/
 
 module.exports = () => {
@@ -29,7 +29,7 @@ module.exports = () => {
       clientLogLevel: 'warning',
       hot: true,
       inline: true,
-      port
+      port:8888
     },
     module: {
       rules: [

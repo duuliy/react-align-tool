@@ -10,8 +10,7 @@
   ],
   "plugins": [
     "@babel/plugin-proposal-object-rest-spread",
-    "@babel/plugin-transform-runtime",
-    "react-hot-loader/babel"
+    "@babel/plugin-transform-runtime"
   ],
   "env": {
     "test": {
