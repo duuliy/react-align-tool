@@ -22,6 +22,7 @@ const SOURCE = 'Source'
 const TARGET = 'Target'
 const CONT = 'cont'
 const ALL = 'all'
+const SELECTED = 'selected'
 
 const Header = () => {
   const leftList = [
@@ -113,118 +114,120 @@ const Header = () => {
 }
 
 const Content = ({ sourceList, targetList, onChangeSource, onChangeTarget }) => {
-  const [coordinate, setCoordinate] = useState({ direction: '', ids: [] })
+  let oldBarAndId = useRef([])
   const maxLength = Math.max(sourceList.length, targetList.length)
 
-  const changeIsContentEditable = (ref, boo, boxShadow, event) => {
-    ref.current.contentEditable = boo
-    ref.current.style.boxShadow = boxShadow
+  const changeIsContentEditable = (e, boo, boxShadow, event) => {
+    e.target.contentEditable = boo
+    e.target.style.boxShadow = boxShadow
     if (event) {
-      ref.current[event]()
+      clearAllNodeSelected()
+      addNodesSelected(e.target.parentNode)
+      e.target[event]()
       const range = window.getSelection()
-      range.selectAllChildren(ref.current)
+      range.selectAllChildren(e.target)
       range.collapseToEnd()
     }
   }
 
   const isSource = direction => direction === SOURCE
 
-  const updateData = (ref, direction, id) => {
-    changeIsContentEditable(ref, false, 'none')
-    const _data = produce(isSource(direction) ? sourceList : targetList, draft => draft.map((v, i) => i === id ? ref.current.innerText : v))
+  const updateData = (e, direction, id) => {
+    changeIsContentEditable(e, false, 'none')
+    const _data = produce(isSource(direction) ? sourceList : targetList, draft => draft.map((v, i) => i === id ? e.target.innerText : v))
     isSource(direction) ? onChangeSource(_data) : onChangeTarget(_data)
   }
 
-  const combinationEvent = (e, ref, direction, id) => {
-    // const _data = getActiveData(direction, id)
-    const param = {
-      direction,
-      ids: [id]
+  const hasDisabled = node => node.classList.contains('disabled')
+
+  const clearAllNodeSelected = () => document.querySelectorAll(`.${SELECTED}`).forEach(v => v.classList.remove(SELECTED))
+
+  const addNodesSelected = nodes => nodes.length && nodes.filter(v => !hasDisabled(v)).forEach(v => v.classList.add(SELECTED))
+
+  const getBarAndId = node => node.getAttribute('data-bar').split('-')
+
+  const getSubscriptArr = (start, end) => new Array((Math.abs(end - start)) + 1).fill(Math.min(start, end)).map((v, i) => v + i)
+
+  //There is no conflict without virtual dom
+  const getClickNodes = (e) => {
+    let nodes = [e.target.parentNode]
+    const [dataBar, id] = getBarAndId(e.target)
+    const ifDataBarToEqualALL = dataBar === ALL
+    const nodes_DATABAR_ALL = [...e.target.parentNode.parentNode.childNodes]
+    let oldId
+
+    if (e.shiftKey) {
+      if (oldBarAndId.length) {
+        const [_dataBar, _id] = oldBarAndId
+        oldId = _id
+        if (_dataBar !== dataBar) {
+          ifDataBarToEqualALL && (nodes = nodes_DATABAR_ALL)
+        } else {
+          const selectedIds = getSubscriptArr(_id, id)
+          nodes = ifDataBarToEqualALL
+            ? selectedIds.map(v => [...document.querySelector(`span[data-bar=${dataBar}-${v}]`).parentNode.parentNode.childNodes]).flat()
+            : selectedIds.map(v => document.querySelector(`div[data-bar=${dataBar}-${v}]`).parentNode)
+        }
+      } else {
+        ifDataBarToEqualALL && (nodes = nodes_DATABAR_ALL)
+      }
+    } else {
+      ifDataBarToEqualALL && (nodes = nodes_DATABAR_ALL)
     }
-    setCoordinate(param)
+
+    const saveIdsLength = nodes.filter(v => getBarAndId(v.childNodes[0])[0] === (ifDataBarToEqualALL ? ALL : dataBar)).length
+    clearAllNodeSelected()
+    addNodesSelected(nodes)
+    oldBarAndId = [dataBar, saveIdsLength === 1 ? id : oldId]
+
   }
 
-  const getClickNodes = (e, id) => {
-    e.preventDefault()
-    e.stopPropagation()
-    console.log(e)
-    // console.log(e.target.getAttribute('data-bar'))
-    // console.log(e.shiftKey) boo shift组合事件 多选
-    setCoordinate({
-      direction: e.target.getAttribute('data-bar'),
-      ids: [id]
-    })
-    // combinationEvent(e, ref, direction, id)
-    // count.current += 1
-    // setTimeout(() => {
-    //   console.log(count.current)
-    //   if (count.current === 1) {
-    //     combinationEvent(e, ref, direction, id)
-    //   } else if (count.current === 2) {
-    //     direction !==ALL && changeIsContentEditable(ref, true, 'inset 0 0 5px #1890ff', 'focus')
-    //     // combinationEvent(e, ref, direction, id)
-    //   }
-    //   count.current = 0
-    // }, 200)
+  const combinationEvent = (e, ref, direction, id) => {
+
   }
 
-  const TdToSpan = ({ id, onClick }) => {
-    const _ref = createRef(null)
-
-    return <td className={coordinate.direction === ALL && coordinate.ids.includes(id) ? 'selected' : null}
-      // ref={_ref}
-      // onClick={(e) => onClick(e, _ref)}
-    >
-      <span className="number" data-bar={ALL}>{id + 1}</span>
+  const TdToSpan = ({ id }) =>
+    <td>
+      <span className="number" data-bar={`${ALL}-${id}`}>{id + 1}</span>
     </td>
-  }
+
 
   const TdToP = (props) => {
-    const { onClick, onDoubleClick, onBlur, text, id, direction } = props
-    const _ref = createRef(null)
+    const { onDoubleClick, onBlur, text, direction, id } = props
 
     const className = [
-      ([direction, ALL].includes(coordinate.direction) && coordinate.ids.includes(id) && text) && 'selected',
       !text && 'disabled'
     ].filter(a => a).join(' ')
 
     return <td className={className}>
-      <div suppressContentEditableWarning
-        data-bar={direction}
-        ref={_ref}
-        // onClick={(e) => onClick(e, _ref)}
-        // onClick={e => e.stopPropagation()}
-        onDoubleClick={() => onDoubleClick(_ref)}
-        // onDoubleClick={()=>console.log(666)}
-        onBlur={() => onBlur(_ref)}
+      <div suppressContentEditableWarning   //maybe input
+        data-bar={`${direction}-${id}`}
+        onDoubleClick={onDoubleClick}
+        onBlur={onBlur}
       >{text}</div>
     </td>
   }
-  // getAttribute
+
   return <section className={`${PrefixCls}-content-wrap`}>
     <div className={`${PrefixCls}-content`}>
       <table cellSpacing='0' cellPadding='0'>
         <tbody>
-          {new Array(maxLength).fill('').map((v, i) => <tr key={i} onClick={e => getClickNodes(e,i)}>
+          {new Array(maxLength).fill('').map((v, i) => <tr key={i} onClick={getClickNodes}>
             <TdToSpan
-              // onClick={(e, ref) => getClickFunc(e, ref, ALL, i)}
               id={i}
             />
             <TdToP
-              // onClick={(e, ref) => getClickFunc(e, ref, SOURCE, i)}
-              onDoubleClick={ref =>changeIsContentEditable(ref, true, 'inset 0 0 5px #1890ff', 'focus')}
-              // onDoubleClick={()=>console.log(666)}
-              onBlur={ref => updateData(ref, SOURCE, i)}
-              id={i}
+              onDoubleClick={e => changeIsContentEditable(e, true, 'inset 0 0 5px #1890ff', 'focus')}
+              onBlur={e => updateData(e, SOURCE, i)}
               direction={SOURCE}
+              id={i}
               text={sourceList[i]}
             />
             <TdToP
-              // onClick={(e, ref) => getClickFunc(e, ref, TARGET, i)}
-              onDoubleClick={ref => changeIsContentEditable(ref, true, 'inset 0 0 5px #1890ff', 'focus')}
-              onBlur={ref => updateData(ref, TARGET, i)}
-              id={i}
+              onDoubleClick={e => changeIsContentEditable(e, true, 'inset 0 0 5px #1890ff', 'focus')}
+              onBlur={e => updateData(e, TARGET, i)}
               direction={TARGET}
+              id={i}
               text={targetList[i]}
             />
           </tr>
@@ -248,7 +251,7 @@ const Align = () => {
       _targetList.push(v[`${CONT + TARGET}`])
     })
     setSourceList(_sourceList.filter(v => !!v))
-    setTargetList(_targetList.filter(v => !!v))
+    setTargetList(_targetList)
   }
 
   useEffect(() => {
