@@ -1,11 +1,11 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
-import App from './App'
+import Align from './Align'
 import './restCss.less'
 
 ReactDOM.render(
   <React.StrictMode>
-    <App />
+    <Align />
   </React.StrictMode>
   ,
   document.getElementById('root')

@@ -6,18 +6,18 @@
  */
 
 import React, { useRef, useEffect, useState, memo, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import './style.less'
 import { produce } from 'immer'
 import dataList from './mockData.json'
 
-
+//还原过去vue写的一个对齐工具80%功能,代码量减少50%，开发时间减少70%，验证成长
 //cicd 整一套
 //颜色切换
 //功能选择
-//上传导出地址输入
 
-//上传,保存,导出，回退，前进
-//快捷键 菜单
+//上传 导出 菜单
+//快捷键 回退 前进
 
 const PrefixCls = 'align-tool'
 const SOURCE = 'Source'
@@ -26,11 +26,73 @@ const CONT = 'cont'
 const ALL = 'all'
 const SELECTED = 'selected'
 
+const debounce = (fn, wait = 100, options) => {
+  let timer
+  return function () {
+    if (options && !timer) {
+      fn.apply(this, arguments)
+    }
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      fn.apply(this, arguments)
+    }, wait)
+  }
+}
+
+
+const Modal = memo((props) => {
+  const searchRef = useRef(null)
+  const replaceRef = useRef(null)
+  const {
+    visible = false,
+    onClose,
+    searchKeyWord,
+    replaceAllKeyWord
+  } = props
+
+  return visible
+    ? <div>
+      {createPortal(
+        <div className='aligin-modal'>
+          <div>
+            <input type="text" onChange={e => searchRef.current = e.target.value} placeholder='查询' />
+            <input type="text" onChange={e => replaceRef.current = e.target.value} placeholder='替换' />
+          </div>
+          <span onClick={() => searchKeyWord(searchRef.current)}>查询</span>
+          <span onClick={() => replaceAllKeyWord(searchRef.current, replaceRef.current)}>全替换</span>
+          <span onClick={onClose}>关</span>
+        </div>
+        , document.querySelector('body'))}
+    </div>
+    : null
+})
 
 const Align = () => {
+  const [visible, setVisible] = useState(true)
   const [sourceList, setSourceList] = useState([])
   const [targetList, setTargetList] = useState([])
   const maxListLength = Math.max(sourceList.length, targetList.length)
+
+
+  const searchKeyWord = val => {
+    if(!val) return void(0)
+
+    const getKeywordList = dataList => produce(dataList, draft =>
+      draft.map(v =>
+        v.replace(new RegExp('<span class="yellow">', 'g'), '')
+          .replace(new RegExp('</span>', 'g'), '')
+          .replace(new RegExp(val, 'g'), `<span class="yellow">${val}</span>`))
+    )
+    setSourceList(getKeywordList(sourceList))
+    setTargetList(getKeywordList(targetList))
+  }
+
+  const replaceAllKeyWord = (searchVal, replaceVal) => {
+    if (!searchVal || !replaceVal) return void (0)
+    const getKeywordList = dataList => produce(dataList, draft => draft.map(v => v.replace(new RegExp(`<span class="yellow">${searchVal}</span>`, 'g'), replaceVal)))
+    setSourceList(getKeywordList(sourceList))
+    setTargetList(getKeywordList(targetList))
+  }
 
   const getBarAndId = node => (node.getAttribute('data-bar') || '').split('-')
 
@@ -66,31 +128,41 @@ const Align = () => {
     }
   }
 
-  //查找 替换
-
   const splitRow = () => {
-    console.log(666)
-    console.log(document.querySelector('div[contentEditable=true]'))
-    // let range = window.getSelection().getRangeAt(0)
-    // console.log(range)
-    // var preCaretRange = range.cloneRange()
-    // preCaretRange.selectNodeContents(element)
-    // preCaretRange.setEnd(range.endContainer, range.endOffset)
-    // return preCaretRange.toString().trim().length
+    const focusNode = document.querySelector('div[contentEditable=true]')
+    if (!focusNode) return void (0)
+
+    const [dataBar, id] = getBarAndId(focusNode)
+    if (hasALL(dataBar)) return void (0)
+
+    const range = window.getSelection().getRangeAt(0)
+    const preCaretRange = range.cloneRange()
+    preCaretRange.selectNodeContents(focusNode)
+    preCaretRange.setEnd(range.endContainer, range.endOffset)
+    const cursorPosition = preCaretRange.toString().trim().length
+    if ([focusNode.innerText.length, 0].includes(cursorPosition)) return void (0)
+
+    const getSplitfn = dataList => produce(dataList, draft => {
+      const deletedItem = draft[id].slice(cursorPosition)
+      draft[id] = draft[id].slice(0, cursorPosition)
+      draft.splice(id + 1, 0, deletedItem)
+    })
+    const sourcefn = debounce(() => setSourceList(getSplitfn(sourceList)))
+    const targetFn = debounce(() => setTargetList(getSplitfn(targetList)))
+    executeDataBarBranchFn(dataBar, () => { }, sourcefn, targetFn)
   }
 
-  const mergeRow = (e) => {
+  const mergeRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
-    if (!dataBar || endId <= startId ) return void (0)
+    if (!dataBar || endId <= startId) return void (0)
+
     const num = endId - startId + 1
-    const sourcefn = () => setSourceList(produce(sourceList, draft => {
+    const getMergefn = dataList => produce(dataList, draft => {
       const selectedItem = draft.splice(startId, num).join('')
-      draft.splice(startId, 0, selectedItem) 
-    }))
-    const targetFn = () => setTargetList(produce(targetList, draft => { 
-      const selectedItem = draft.splice(startId, num).join('')
-      draft.splice(startId, 0, selectedItem) 
-    }))
+      draft.splice(startId, 0, selectedItem)
+    })
+    const sourcefn = () => setSourceList(getMergefn(sourceList))
+    const targetFn = () => setTargetList(getMergefn(targetList))
     const allFn = () => {
       sourcefn()
       targetFn()
@@ -101,6 +173,7 @@ const Align = () => {
   const exchangeRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
     if (!dataBar || !hasALL(dataBar)) return void (0)
+
     const num = endId - startId + 1
     setSourceList(produce(sourceList, draft => {
       const targetReplace = targetList.slice(startId, endId - 0 + 1)
@@ -116,14 +189,13 @@ const Align = () => {
   const moveUpRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
     if (!dataBar || startId <= 0) return void (0)
-    const sourcefn = () => setSourceList(produce(sourceList, draft => {
+
+    const getMoveUpfn = dataList => produce(dataList, draft => {
       const deletedItems = draft.splice(startId - 0 - 1, 1)
       draft.splice(endId, 0, ...deletedItems)
-    }))
-    const targetFn = () => setTargetList(produce(targetList, draft => {
-      const deletedItems = draft.splice(startId - 0 - 1, 1)
-      draft.splice(endId, 0, ...deletedItems)
-    }))
+    })
+    const sourcefn = () => setSourceList(getMoveUpfn(sourceList))
+    const targetFn = () => setTargetList(getMoveUpfn(targetList))
     const allFn = () => {
       sourcefn()
       targetFn()
@@ -134,14 +206,13 @@ const Align = () => {
   const moveDownRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
     if (!dataBar || endId >= maxListLength - 1) return void (0)
-    const sourcefn = () => setSourceList(produce(sourceList, draft => {
+
+    const getMoveDownfn = dataList => produce(dataList, draft => {
       const deletedItems = draft.splice(endId - 0 + 1, 1)
       draft.splice(startId, 0, ...deletedItems)
-    }))
-    const targetFn = () => setTargetList(produce(targetList, draft => {
-      const deletedItems = draft.splice(endId - 0 + 1, 1)
-      draft.splice(startId, 0, ...deletedItems)
-    }))
+    })
+    const sourcefn = () => setSourceList(getMoveDownfn(sourceList))
+    const targetFn = () => setTargetList(getMoveDownfn(targetList))
     const allFn = () => {
       sourcefn()
       targetFn()
@@ -174,7 +245,8 @@ const Align = () => {
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
-  const Header = () => {
+  const renderHeader = () => {
+
     const leftList = [
       {
         name: '回退',
@@ -231,15 +303,10 @@ const Align = () => {
         onClick: deleteRow
       },
       {
-        name: '查找',
+        name: '查找和替换',
         icon: '',
-        onClick: () => { }
-      },
-      {
-        name: '替换',
-        icon: '',
-        onClick: () => { }
-      },
+        onClick: () => setVisible(true)
+      }
     ]
     const rightList = [
       {
@@ -248,18 +315,11 @@ const Align = () => {
         funcCb: () => { }
       },
       {
-        name: '保存',
-        icon: '',
-        title: 'Ctrl + I',
-        funcCb: () => { }
-      },
-      {
         name: '导出',
         icon: '',
         funcCb: () => { }
       },
     ]
-
     const renderLi = list => list.map((v, i) => <li key={i} title={v.title} onClick={v.onClick}>{v.name}</li>)
 
     return <section className={`${PrefixCls}-header`}>
@@ -272,7 +332,7 @@ const Align = () => {
     </section>
   }
 
-  const Content = () => {
+  const renderContent = () => {
     let oldBarAndId = useRef([])
 
     const changeIsContentEditable = (e, boo, boxShadow, event) => {
@@ -290,13 +350,11 @@ const Align = () => {
 
     const isSource = direction => direction === SOURCE
 
-    const updateData = (e, direction, id) => {
-      changeIsContentEditable(e, false, 'none')
+    const updateData = debounce((e, direction, id) => {
+      // changeIsContentEditable(e, false, 'none')
       const _data = produce(isSource(direction) ? sourceList : targetList, draft => draft.map((v, i) => i === id ? e.target.innerText : v))
       isSource(direction) ? setSourceList(_data) : setTargetList(_data)
-    }
-
-    // const hasDisabled = node => node.classList.contains('disabled')
+    })
 
     const clearAllNodeSelected = () => document.querySelectorAll(`.${SELECTED}`).forEach(v => v.classList.remove(SELECTED))
 
@@ -314,8 +372,8 @@ const Align = () => {
       let oldId
 
       if (e.shiftKey) {
-        if (oldBarAndId.length) {
-          const [_dataBar, _id] = oldBarAndId
+        if (oldBarAndId.current.length) {
+          const [_dataBar, _id] = oldBarAndId.current
           oldId = _id
           if (_dataBar !== dataBar) {
             ifDataBarToEqualALL && (nodes = nodes_DATABAR_ALL)
@@ -335,7 +393,7 @@ const Align = () => {
       const saveIdsLength = nodes.filter(v => getBarAndId(v.childNodes[0])[0] === (ifDataBarToEqualALL ? ALL : dataBar)).length
       clearAllNodeSelected()
       addNodesSelected(nodes)
-      oldBarAndId = [dataBar, saveIdsLength === 1 ? id : oldId]
+      oldBarAndId.current = [dataBar, saveIdsLength === 1 ? id : oldId]
     }
 
     const TdToSpan = ({ id }) =>
@@ -356,7 +414,8 @@ const Align = () => {
           data-bar={`${direction}-${id}`}
           onDoubleClick={onDoubleClick}
           onBlur={onBlur}
-        >{text}</div>
+          dangerouslySetInnerHTML={{ __html: text }}
+        />
       </td>
     }
 
@@ -404,18 +463,23 @@ const Align = () => {
   useEffect(() => {
     // addEventListener('keydown' 键盘订阅
     // onContextMenu 右键菜单
-    // 检测页面刷新
     getInit()
   }, [])
 
   return <div className={PrefixCls}>
-    <Header />
-    <Content />
+    {renderHeader()}
+    {renderContent()}
     <section className={`${PrefixCls}-footer`}>
       总行数：36
     </section>
+    <Modal visible={visible}
+      onClose={() => setVisible(false)}
+      searchKeyWord={searchKeyWord}
+      replaceAllKeyWord={replaceAllKeyWord}
+    />
   </div>
 
 }
+
 
 export default Align
