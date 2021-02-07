@@ -69,6 +69,18 @@ const Align = () => {
   const [sourceList, setSourceList] = useState([])
   const [targetList, setTargetList] = useState([])
   const maxListLength = Math.max(sourceList.length, targetList.length)
+  const setLocal = (key, val) => localStorage.setItem(key, JSON.stringify(val))
+  const removeLocal = key => localStorage.removeItem(key)
+  const getLocal = key => localStorage.getItem(key) && JSON.parse(localStorage.getItem(key))
+  const setCache = (type, dataBar, startId, endId, searchVal, replaceVal) => { 
+    const step = getLocal('recordStep') + 1
+    const record={ type, dataBar, startId, endId, searchVal, replaceVal, step }
+    let _records = getLocal('records')
+    _records.splice(step)
+    _records.push(record)
+    setLocal('records', _records)
+    setLocal('recordStep', step)
+  }
 
   const onCloseModal = () => {
     const getKeywordList = dataList => produce(dataList, draft =>
@@ -100,6 +112,7 @@ const Align = () => {
     const getKeywordList = dataList => produce(dataList, draft => draft.map(v => v.replace(new RegExp(`<span class="yellow">${searchVal}</span>`, 'g'), replaceVal)))
     setSourceList(getKeywordList(sourceList))
     setTargetList(getKeywordList(targetList))
+    // setCache('replaceAllKeyWord', '', '', '',searchVal, replaceVal)
   }
 
   const getBarAndId = node => (node.getAttribute('data-bar') || '').split('-')
@@ -119,8 +132,8 @@ const Align = () => {
 
     return {
       dataBar: isALL ? ALL : dataBar,
-      startId: ids[0],
-      endId: ids[ids.length - 1]
+      startId: Number(ids[0]),
+      endId: Number(ids[ids.length - 1])
     }
   }
 
@@ -151,11 +164,12 @@ const Align = () => {
     const getSplitfn = dataList => produce(dataList, draft => {
       const deletedItem = draft[id].slice(cursorPosition)
       draft[id] = draft[id].slice(0, cursorPosition)
-      draft.splice(id + 1, 0, deletedItem)
+      draft.splice(id - 0 + 1, 0, deletedItem)
     })
-    const sourcefn = debounce(() => setSourceList(prevState=>getSplitfn(prevState)))
-    const targetFn = debounce(() => setTargetList(prevState=>getSplitfn(prevState)))
+    const sourcefn = debounce(() => setSourceList(prevState => getSplitfn(prevState)))
+    const targetFn = debounce(() => setTargetList(prevState => getSplitfn(prevState)))
     executeDataBarBranchFn(dataBar, () => { }, sourcefn, targetFn)
+    // setCache('split', dataBar, startId, endId) ? focusNode
   }
 
   const mergeRow = () => {
@@ -167,12 +181,13 @@ const Align = () => {
       const selectedItem = draft.splice(startId, num).join('')
       draft.splice(startId, 0, selectedItem)
     })
-    const sourcefn = () => setSourceList(prevState => getMergefn(prevState))
-    const targetFn = () => setTargetList(prevState => getMergefn(prevState))
+    const sourcefn = () => setSourceList(getMergefn(sourceList))
+    const targetFn = () => setTargetList(getMergefn(targetList))
     const allFn = () => {
       sourcefn()
       targetFn()
     }
+    setCache('merge', dataBar, startId, endId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
@@ -182,13 +197,14 @@ const Align = () => {
 
     const num = endId - startId + 1
     setSourceList(produce(sourceList, draft => {
-      const targetReplace = targetList.slice(startId, endId - 0 + 1)
+      const targetReplace = targetList.slice(startId, endId + 1)
       draft.splice(startId, num, ...targetReplace)
     }))
     setTargetList(produce(targetList, draft => {
-      const sourceReplace = sourceList.slice(startId, endId - 0 + 1)
+      const sourceReplace = sourceList.slice(startId, endId + 1)
       draft.splice(startId, num, ...sourceReplace)
     }))
+    setCache('exchange', dataBar, startId, endId)
   }
 
   const moveUpRow = () => {
@@ -196,7 +212,7 @@ const Align = () => {
     if (!dataBar || startId <= 0) return void (0)
 
     const getMoveUpfn = dataList => produce(dataList, draft => {
-      const deletedItems = draft.splice(startId - 0 - 1, 1)
+      const deletedItems = draft.splice(startId - 1, 1)
       draft.splice(endId, 0, ...deletedItems)
     })
     const sourcefn = () => setSourceList(prevState => getMoveUpfn(prevState))
@@ -205,6 +221,7 @@ const Align = () => {
       sourcefn()
       targetFn()
     }
+    setCache('moveUp', dataBar, startId, endId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
@@ -213,15 +230,16 @@ const Align = () => {
     if (!dataBar || endId >= maxListLength - 1) return void (0)
 
     const getMoveDownfn = dataList => produce(dataList, draft => {
-      const deletedItems = draft.splice(endId - 0 + 1, 1)
+      const deletedItems = draft.splice(endId + 1, 1)
       draft.splice(startId, 0, ...deletedItems)
     })
     const sourcefn = () => setSourceList(prevState => getMoveDownfn(prevState))
-    const targetFn = () => setTargetList(prevState=>getMoveDownfn(prevState))
+    const targetFn = () => setTargetList(prevState => getMoveDownfn(prevState))
     const allFn = () => {
       sourcefn()
       targetFn()
     }
+    setCache('moveDown', dataBar, startId, endId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
@@ -230,11 +248,12 @@ const Align = () => {
     if (!dataBar) return void (0)
     const num = endId - startId + 1
     const sourcefn = () => setSourceList(prevState => produce(prevState, draft => { draft.splice(startId, num) }))
-    const targetFn = () => setTargetList(prevState=>produce(prevState, draft => { draft.splice(startId, num) }))
+    const targetFn = () => setTargetList(prevState => produce(prevState, draft => { draft.splice(startId, num) }))
     const allFn = () => {
       sourcefn()
       targetFn()
     }
+    setCache('delete', dataBar, startId, endId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
@@ -242,16 +261,35 @@ const Align = () => {
     const { dataBar, startId } = getSelectedNodes()
     if (!dataBar) return void (0)
     const sourcefn = () => setSourceList(prevState => produce(prevState, draft => { draft.splice(startId, 0, '') }))
-    const targetFn = () => setTargetList(prevState=>produce(prevState, draft => { draft.splice(startId, 0, '') }))
+    const targetFn = () => setTargetList(prevState => produce(prevState, draft => { draft.splice(startId, 0, '') }))
     const allFn = () => {
       sourcefn()
       targetFn()
     }
+    setCache('insert', dataBar, startId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
-  const monitorKeyboard = e => {
-    if (!e.ctrlKey || !sourceList.length || !targetList.length) return void(0)
+  // mergeRow splitRow replaceAllKeyWord最后
+
+  // records !!! []  recordStep
+  // recordStep ref
+  // type
+  // dataBar
+  // startId
+  // endId
+  // searchVal,replaceVal
+
+  const backRecord = () => {
+    setLocal('recordStep', getLocal('recordStep') - 1)
+  }
+
+  const forwardRecord = () => {
+    setLocal('recordStep', getLocal('recordStep') + 1)
+  }
+
+  const monitorKeyboard = debounce(e => {
+    if (!e.ctrlKey || !sourceList.length || !targetList.length) return void (0)
     switch (e.keyCode) {
       case 77:
         mergeRow()
@@ -284,7 +322,7 @@ const Align = () => {
 
         break;
     }
-  }
+  }, 300)
 
   const renderHeader = () => {
 
@@ -293,13 +331,13 @@ const Align = () => {
         name: '回退',
         icon: '',
         title: 'Ctrl + Z',
-        onClick: () => { }
+        onClick: backRecord
       },
       {
         name: '前进',
         icon: '',
         title: 'Ctrl + Y',
-        onClick: () => { }
+        onClick: forwardRecord
       },
       {
         name: '合并',
@@ -374,7 +412,7 @@ const Align = () => {
   }
 
   const renderContent = useCallback(() => {
-    let oldBarAndId = useRef([])
+    const oldBarAndId = useRef([])
 
     const changeIsContentEditable = (e, boo, boxShadow, event) => {
       e.target.contentEditable = boo
@@ -491,13 +529,23 @@ const Align = () => {
   }, [sourceList, targetList])
 
   const getInit = () => {
-    const _sourceList = []
-    const _targetList = []
+    let _sourceList = []
+    let _targetList = []
     dataList.forEach(v => {
       _sourceList.push(v[`${CONT + SOURCE}`])
       _targetList.push(v[`${CONT + TARGET}`])
     })
-    setSourceList(_sourceList.filter(v => !!v))
+    if (window.confirm("是否打开上次保存数据?")) {
+      _sourceList = getLocal('sourceList') || _sourceList
+      _targetList = getLocal('targetList') || _targetList
+    } else {
+      removeLocal('sourceList')
+      removeLocal('targetList')
+      removeLocal('recordStep')
+      removeLocal('records')
+    }
+    !getLocal('recordStep') && setLocal('recordStep', 0)
+    setSourceList(_sourceList)
     setTargetList(_targetList)
   }
 
@@ -506,9 +554,11 @@ const Align = () => {
   }, [])
 
   useEffect(() => {
-    document.body.addEventListener('keydown', debounce(monitorKeyboard))
+    document.body.addEventListener('keydown', monitorKeyboard)
+    setLocal('sourceList', sourceList)
+    setLocal('targetList', targetList)
     return () => {
-      document.body.removeEventListener('keydown', debounce(monitorKeyboard))
+      document.body.removeEventListener('keydown', monitorKeyboard)
     }
   }, [sourceList, targetList])
 
@@ -524,8 +574,6 @@ const Align = () => {
       replaceAllKeyWord={replaceAllKeyWord}
     />
   </div>
-
 }
-
 
 export default Align
