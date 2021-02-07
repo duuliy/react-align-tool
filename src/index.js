@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
-import Align from './Align'
+import Align from './align'
 import './restCss.less'
 
 ReactDOM.render(
