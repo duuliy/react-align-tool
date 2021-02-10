@@ -1,15 +1,3 @@
-import React from 'react'
-import ReactDOM from 'react-dom'
-import Align from './align'
-import './restCss.less'
+import Align from '../src/align'
 
-ReactDOM.render(
-  <React.StrictMode>
-    <Align />
-  </React.StrictMode>
-  ,
-  document.getElementById('root')
-)
-
-
-
+export default Align;

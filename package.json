@@ -4,6 +4,15 @@
   "description": "The function used for document alignment may be very small",
   "author": "duuliy (715181149@qq.com)",
   "license": "MIT",
+  "keywords": [
+    "react",
+    "reactjs",
+    "align",
+    "tool",
+    "align-tool",
+    "alignTool",
+    "component"
+  ],
   "scripts": {
     "start": "cross-env NODE_ENV=dev webpack serve --progress --config webpack.config.js",
     "build": "cross-env CLIENT_ENV=production NODE_ENV=production webpack --config webpack.config.js",
@@ -21,10 +30,8 @@
       }
     },
     "collectCoverageFrom": [
-      "src/pages/**/*.{js,jsx,ts,tsx}",
-      "!src/pages/**/*.test.{js,jsx,ts,tsx}",
-      "src/components/**/*.{js,jsx,ts,tsx}",
-      "!src/components/**/*.test.{js,jsx,ts,tsx}"
+      "__tests__/**/*.{js,jsx,ts,tsx}",
+      "!__tests__/**/*.test.{js,jsx,ts,tsx}"
     ],
     "moduleFileExtensions": [
       "ts",
@@ -39,6 +46,7 @@
     ],
     "moduleDirectories": [
       "node_modules",
+      "__tests__",
       "src"
     ],
     "setupFilesAfterEnv": [

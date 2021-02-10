@@ -10,14 +10,14 @@ const HardSourceWebpackPlugin = require('hard-source-webpack-plugin')
 
 const env = process.env.NODE_ENV || 'dev'
 const isDev = env === 'dev'
-const version= '1.0.0'
+const version = '1.0.0'
 const lessModuleRegex = /\.module\.less$/
 
 module.exports = () => {
   const options = {
     target: "web",
     mode: isDev ? 'development' : 'production',
-    entry: './src/index',
+    entry: isDev ? './example/index' : './src/align',
     output: {
       filename: '[name].[hash].js',
       path: path.join(__dirname, 'dist'),
@@ -29,7 +29,7 @@ module.exports = () => {
       clientLogLevel: 'warning',
       hot: true,
       inline: true,
-      port:8888
+      port: 8888
     },
     module: {
       rules: [
@@ -43,7 +43,7 @@ module.exports = () => {
           }],
           include: [
             path.join(__dirname, 'src'),
-            path.join(__dirname, 'mock'),
+            path.join(__dirname, 'example'),
           ],
         },
         {
@@ -67,7 +67,7 @@ module.exports = () => {
                 loader: "less-loader",
                 options: {
                   sourceMap: true,
-                  lessOptions:{
+                  lessOptions: {
                     javascriptEnabled: true
                   }
                 }
@@ -85,7 +85,7 @@ module.exports = () => {
         },
         {
           test: lessModuleRegex,
-          include: [path.resolve(__dirname, 'src')],
+          include: [path.resolve(__dirname, 'src'), path.resolve(__dirname, 'example')],
           use: [
             isDev ? 'style-loader' : MiniCssExtractPlugin.loader,
             {
@@ -181,11 +181,11 @@ module.exports = () => {
           }
         }
       }),
-      new HtmlWebpackPlugin({
+      isDev&&new HtmlWebpackPlugin({
         title: "align-tool",
         filename: "index.html",
         inject: true,
-        template: path.resolve(__dirname, "./src/index.html"),
+        template: path.resolve(__dirname, "./example/index.html"),
         hash: true
       })
     ],

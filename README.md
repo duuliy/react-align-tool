@@ -1,1 +1,1 @@
-还原过去vue写的一个对齐工具80%功能,代码量减少50%，开发时间减少70%，验证成长
+Alignment tool, the scene is very small, currently known translation and document classes in use, the UI is relatively rough, if someone wants to use, then gradually beautify the UI or add features and instructions

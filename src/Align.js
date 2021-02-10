@@ -8,13 +8,9 @@
 import React, { useRef, useEffect, useState, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import './style.less'
+import './restCss.less'
 import { produce } from 'immer'
-import dataList from './mockData.json'
-
-//还原过去vue写的一个对齐工具80%功能,代码量减少50%，开发时间减少70%，验证成长
-
-//上传 导出 菜单
-//快捷键 回退 前进
+import PropTypes from 'prop-types'
 
 const PrefixCls = 'align-tool'
 const SOURCE = 'Source'
@@ -38,8 +34,8 @@ const debounce = (fn, wait = 100, options) => {
 
 
 const Modal = memo((props) => {
-  const searchRef = useRef(null)
-  const replaceRef = useRef(null)
+  const searchRef = useRef('')
+  const replaceRef = useRef('')
   const {
     visible = false,
     onClose,
@@ -64,19 +60,21 @@ const Modal = memo((props) => {
     : null
 })
 
-const Align = () => {
+const Align = ({ dataList, exportData }) => {
   const [visible, setVisible] = useState(false)
   const [sourceList, setSourceList] = useState([])
   const [targetList, setTargetList] = useState([])
+  const isSplit = useRef(false)
   const maxListLength = Math.max(sourceList.length, targetList.length)
   const setLocal = (key, val) => localStorage.setItem(key, JSON.stringify(val))
   const removeLocal = key => localStorage.removeItem(key)
   const getLocal = key => localStorage.getItem(key) && JSON.parse(localStorage.getItem(key))
-  const setCache = (type, dataBar, startId, endId, searchVal, replaceVal) => { 
+
+  const setCache = params => {
     const step = getLocal('recordStep') + 1
-    const record={ type, dataBar, startId, endId, searchVal, replaceVal, step }
-    let _records = getLocal('records')
-    _records.splice(step)
+    const record = { ...params, step }
+    let _records = getLocal('records') || []
+    _records = _records.filter(v => !(v.step === step))
     _records.push(record)
     setLocal('records', _records)
     setLocal('recordStep', step)
@@ -107,15 +105,26 @@ const Align = () => {
     setTargetList(getKeywordList(targetList))
   }
 
-  const replaceAllKeyWord = (searchVal, replaceVal) => {
-    if (!searchVal || !replaceVal) return void (0)
-    const getKeywordList = dataList => produce(dataList, draft => draft.map(v => v.replace(new RegExp(`<span class="yellow">${searchVal}</span>`, 'g'), replaceVal)))
+  const replaceCb = (searchVal, replaceVal) => {
+    const getKeywordList = (dataList) => produce(dataList, draft => draft.map(v => v.replace(new RegExp(searchVal, 'g'), replaceVal)))
     setSourceList(getKeywordList(sourceList))
     setTargetList(getKeywordList(targetList))
-    // setCache('replaceAllKeyWord', '', '', '',searchVal, replaceVal)
   }
 
-  const getBarAndId = node => (node.getAttribute('data-bar') || '').split('-')
+  const replaceAllKeyWord = (searchVal, replaceVal) => {
+    if (!searchVal || !replaceVal) return void (0)
+    setCache({
+      type: 'replace',
+      searchVal,
+      replaceVal
+    })
+    replaceCb(`<span class="yellow">${searchVal}</span>`, replaceVal)
+  }
+
+  const getBarAndId = node => {
+    const [dataBar, id] = (node.getAttribute('data-bar') || '').split('-')
+    return [dataBar, Number(id)]
+  }
 
   const hasALL = dataBar => dataBar === ALL
 
@@ -132,8 +141,8 @@ const Align = () => {
 
     return {
       dataBar: isALL ? ALL : dataBar,
-      startId: Number(ids[0]),
-      endId: Number(ids[ids.length - 1])
+      startId: ids[0],
+      endId: ids[ids.length - 1]
     }
   }
 
@@ -147,54 +156,103 @@ const Align = () => {
     }
   }
 
+  const splitCb = (dataBar, startId, sourcePositions, targetPositions) => {
+    const params = {}
+    const sourcefn = () => setSourceList(produce(sourceList, draft => {
+      params.sourcePositions = sourcePositions
+      const _deleteds = []
+      let deletedItemArr = draft[startId].split('')
+      sourcePositions.forEach(v => {
+        const item = deletedItemArr.splice(0, v).join('')
+        _deleteds.push(item)
+      })
+      draft.splice(startId, 1, ..._deleteds)
+    }))
+    const targetFn = () => setTargetList(produce(targetList, draft => {
+      params.targetPositions = targetPositions
+      const _deleteds = []
+      let deletedItemArr = draft[startId].split('')
+      targetPositions.forEach(v => {
+        const item = deletedItemArr.splice(0, v).join('')
+        _deleteds.push(item)
+      })
+      draft.splice(startId, 1, ..._deleteds)
+    }))
+    const allFn = () => {
+      sourcefn()
+      targetFn()
+    }
+    executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
+    return params
+  }
+
   const splitRow = () => {
     const focusNode = document.querySelector('div[contentEditable=true]')
     if (!focusNode) return void (0)
 
     const [dataBar, id] = getBarAndId(focusNode)
+    const maxLength = focusNode.innerText.length
     if (hasALL(dataBar)) return void (0)
+    isSplit.current = true
 
     const range = window.getSelection().getRangeAt(0)
     const preCaretRange = range.cloneRange()
     preCaretRange.selectNodeContents(focusNode)
     preCaretRange.setEnd(range.endContainer, range.endOffset)
     const cursorPosition = preCaretRange.toString().trim().length
-    if ([focusNode.innerText.length, 0].includes(cursorPosition)) return void (0)
+    if ([maxLength, 0].includes(cursorPosition)) return void (0)
 
-    const getSplitfn = dataList => produce(dataList, draft => {
-      const deletedItem = draft[id].slice(cursorPosition)
-      draft[id] = draft[id].slice(0, cursorPosition)
-      draft.splice(id - 0 + 1, 0, deletedItem)
+    const params = splitCb(dataBar, id, [cursorPosition, maxLength], [cursorPosition, maxLength])
+    setCache({
+      type: 'split',
+      dataBar,
+      startId: id,
+      endId: id,
+      ...params
     })
-    const sourcefn = debounce(() => setSourceList(prevState => getSplitfn(prevState)))
-    const targetFn = debounce(() => setTargetList(prevState => getSplitfn(prevState)))
-    executeDataBarBranchFn(dataBar, () => { }, sourcefn, targetFn)
-    // setCache('split', dataBar, startId, endId) ? focusNode
+  }
+
+  const mergeCb = (dataBar, startId, endId) => {
+    const num = endId - startId + 1
+    const sourcePositions = []
+    const targetPositions = []
+
+    const sourcefn = () => setSourceList(produce(sourceList, draft => {
+      const selecteds = draft.splice(startId, num)
+      selecteds.forEach(v => sourcePositions.push(v.length))
+      const selectedItem = selecteds.join('')
+      draft.splice(startId, 0, selectedItem)
+    }))
+    const targetFn = () => setTargetList(produce(targetList, draft => {
+      const selecteds = draft.splice(startId, num)
+      selecteds.forEach(v => targetPositions.push(v.length))
+      const selectedItem = selecteds.join('')
+      draft.splice(startId, 0, selectedItem)
+    }))
+    const allFn = () => {
+      sourcefn()
+      targetFn()
+    }
+    executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
+    return {
+      sourcePositions,
+      targetPositions
+    }
   }
 
   const mergeRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
     if (!dataBar || endId <= startId) return void (0)
-
-    const num = endId - startId + 1
-    const getMergefn = dataList => produce(dataList, draft => {
-      const selectedItem = draft.splice(startId, num).join('')
-      draft.splice(startId, 0, selectedItem)
+    const {
+      sourcePositions,
+      targetPositions
+    } = mergeCb(dataBar, startId, endId)
+    setCache({
+      type: 'merge', dataBar, startId, endId, sourcePositions, targetPositions
     })
-    const sourcefn = () => setSourceList(getMergefn(sourceList))
-    const targetFn = () => setTargetList(getMergefn(targetList))
-    const allFn = () => {
-      sourcefn()
-      targetFn()
-    }
-    setCache('merge', dataBar, startId, endId)
-    executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
-  const exchangeRow = () => {
-    const { dataBar, startId, endId } = getSelectedNodes()
-    if (!dataBar || !hasALL(dataBar)) return void (0)
-
+  const exchangeCb = (startId, endId) => {
     const num = endId - startId + 1
     setSourceList(produce(sourceList, draft => {
       const targetReplace = targetList.slice(startId, endId + 1)
@@ -204,13 +262,21 @@ const Align = () => {
       const sourceReplace = sourceList.slice(startId, endId + 1)
       draft.splice(startId, num, ...sourceReplace)
     }))
-    setCache('exchange', dataBar, startId, endId)
   }
 
-  const moveUpRow = () => {
+  const exchangeRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
-    if (!dataBar || startId <= 0) return void (0)
+    if (!dataBar || !hasALL(dataBar)) return void (0)
+    setCache({
+      type: 'exchange',
+      dataBar,
+      startId,
+      endId
+    })
+    exchangeCb(startId, endId)
+  }
 
+  const moveUpCb = (dataBar, startId, endId) => {
     const getMoveUpfn = dataList => produce(dataList, draft => {
       const deletedItems = draft.splice(startId - 1, 1)
       draft.splice(endId, 0, ...deletedItems)
@@ -221,14 +287,22 @@ const Align = () => {
       sourcefn()
       targetFn()
     }
-    setCache('moveUp', dataBar, startId, endId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
-  const moveDownRow = () => {
+  const moveUpRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
-    if (!dataBar || endId >= maxListLength - 1) return void (0)
+    if (!dataBar || startId <= 0) return void (0)
+    setCache({
+      type: 'moveUp',
+      dataBar,
+      startId,
+      endId
+    })
+    moveUpCb(dataBar, startId, endId)
+  }
 
+  const moveDownCb = (dataBar, startId, endId) => {
     const getMoveDownfn = dataList => produce(dataList, draft => {
       const deletedItems = draft.splice(endId + 1, 1)
       draft.splice(startId, 0, ...deletedItems)
@@ -239,90 +313,180 @@ const Align = () => {
       sourcefn()
       targetFn()
     }
-    setCache('moveDown', dataBar, startId, endId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
+  }
+
+  const moveDownRow = () => {
+    const { dataBar, startId, endId } = getSelectedNodes()
+    if (!dataBar || endId >= maxListLength - 1) return void (0)
+    setCache({
+      type: 'moveDown',
+      dataBar,
+      startId,
+      endId
+    })
+    moveDownCb(dataBar, startId, endId)
+  }
+
+  const updateCb = (dataBar, startId, endId, contSources = [], contTargets = []) => {
+    const params = {}
+    const num = endId - startId + 1
+    const ids = Array.from({ length: num }, (v, i) => i + startId)
+    const sourcefn = () => setSourceList(produce(sourceList, draft => {
+      params.contSources = draft.slice(startId, endId + 1)
+      ids.forEach((v, i) => draft[v] = (contSources[i] ? contSources[i] : ''))
+    }))
+    const targetFn = () => setTargetList(produce(targetList, draft => {
+      params.contTargets = draft.slice(startId, endId + 1)
+      ids.forEach((v, i) => draft[v] = (contTargets[i] ? contTargets[i] : ''))
+    }))
+    const allFn = () => {
+      sourcefn()
+      targetFn()
+    }
+    executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
+
+    return params
   }
 
   const deleteRow = () => {
     const { dataBar, startId, endId } = getSelectedNodes()
     if (!dataBar) return void (0)
-    const num = endId - startId + 1
-    const sourcefn = () => setSourceList(prevState => produce(prevState, draft => { draft.splice(startId, num) }))
-    const targetFn = () => setTargetList(prevState => produce(prevState, draft => { draft.splice(startId, num) }))
+    setCache({
+      type: 'delete',
+      dataBar,
+      startId,
+      endId,
+      ...updateCb(dataBar, startId, endId)
+    })
+  }
+
+  const insertCb = (dataBar, startId, num, contSources = [], contTargets = []) => {
+    const sourcefn = () => setSourceList(prevState => produce(prevState, draft => { draft.splice(startId, num, ...contSources) }))
+    const targetFn = () => setTargetList(prevState => produce(prevState, draft => { draft.splice(startId, num, ...contTargets) }))
     const allFn = () => {
       sourcefn()
       targetFn()
     }
-    setCache('delete', dataBar, startId, endId)
     executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
   }
 
   const insertRow = () => {
     const { dataBar, startId } = getSelectedNodes()
     if (!dataBar) return void (0)
-    const sourcefn = () => setSourceList(prevState => produce(prevState, draft => { draft.splice(startId, 0, '') }))
-    const targetFn = () => setTargetList(prevState => produce(prevState, draft => { draft.splice(startId, 0, '') }))
-    const allFn = () => {
-      sourcefn()
-      targetFn()
-    }
-    setCache('insert', dataBar, startId)
-    executeDataBarBranchFn(dataBar, allFn, sourcefn, targetFn)
+    setCache({
+      type: 'insert',
+      dataBar,
+      startId
+    })
+    insertCb(dataBar, startId, 0, [''], [''])
   }
 
-  // mergeRow splitRow replaceAllKeyWord最后
-
-  // records !!! []  recordStep
-  // recordStep ref
-  // type
-  // dataBar
-  // startId
-  // endId
-  // searchVal,replaceVal
-
   const backRecord = () => {
+    const records = getLocal('records')
+    const recordStep = Number(getLocal('recordStep'))
+    if (!records || !recordStep) return void (0)
+    const {
+      type, dataBar, startId, endId, contSources, contTargets, searchVal, replaceVal, sourcePositions, targetPositions
+    } = records.find(v => v.step === recordStep)
+
+    switch (type) {
+      case 'update':
+        updateCb(dataBar, startId, endId, contSources, contTargets)
+        break;
+      case 'insert':
+        insertCb(dataBar, startId, 1)
+        break;
+      case 'delete':
+        updateCb(dataBar, startId, endId, contSources, contTargets)
+        break;
+      case 'moveDown':
+        moveUpCb(dataBar, startId + 1, endId + 1)
+        break;
+      case 'moveUp':
+        moveDownCb(dataBar, startId - 1, endId - 1)
+        break;
+      case 'exchange':
+        exchangeCb(startId, endId)
+        break;
+      case 'merge':
+        splitCb(dataBar, startId, sourcePositions, targetPositions)
+        break;
+      case 'split':
+        mergeCb(dataBar, startId, endId + 1)
+        break;
+      case 'replace':
+        replaceCb(replaceVal, searchVal)
+        break;
+    }
     setLocal('recordStep', getLocal('recordStep') - 1)
   }
 
   const forwardRecord = () => {
+    const records = getLocal('records')
+    if (!records) return void (0)
+    if (records[records.length - 1].step <= getLocal('recordStep')) return void (0)
     setLocal('recordStep', getLocal('recordStep') + 1)
+    const recordStep = Number(getLocal('recordStep'))
+    const {
+      type, dataBar, startId, endId, searchVal, replaceVal, sourcePositions, targetPositions, afterContSources, afterContTargets
+    } = records.find(v => v.step === recordStep)
+
+    switch (type) {
+      case 'update':
+        updateCb(dataBar, startId, endId, afterContSources, afterContTargets)
+        break;
+      case 'insert':
+        insertCb(dataBar, startId, 0, [''], [''])
+        break;
+      case 'delete':
+        updateCb(dataBar, startId, endId)
+        break;
+      case 'moveDown':
+        moveDownCb(dataBar, startId, endId)
+        break;
+      case 'moveUp':
+        moveUpCb(dataBar, startId, endId)
+        break;
+      case 'exchange':
+        exchangeCb(startId, endId)
+        break;
+      case 'merge':
+        mergeCb(dataBar, startId, endId)
+        break;
+      case 'split':
+        splitCb(dataBar, startId, sourcePositions, targetPositions)
+        break;
+      case 'replace':
+        replaceCb(searchVal, replaceVal)
+        break;
+    }
   }
 
   const monitorKeyboard = debounce(e => {
     if (!e.ctrlKey || !sourceList.length || !targetList.length) return void (0)
-    switch (e.keyCode) {
-      case 77:
-        mergeRow()
-        break;
-      case 40:
-        moveDownRow()
-        break;
-      case 38:
-        moveUpRow()
-        break;
-      case 66:
-        exchangeRow()
-        break;
-      case 73:
-        insertRow()
-        break;
-      case 8:
-        deleteRow()
-        break;
-      case 13:
-        splitRow()
-        break;
-      case 70:
-        setVisible(true)
-        break;
-      case 90: //z
-
-        break;
-      case 89: //y
-
-        break;
-    }
+    const actions = new Map([
+      [77, mergeRow],
+      [40, moveDownRow],
+      [38, moveUpRow],
+      [66, exchangeRow],
+      [73, insertRow],
+      [8, deleteRow],
+      [13, splitRow],
+      [70, () => setVisible(true)],
+      [81, backRecord],
+      [89, forwardRecord]
+    ])
+    actions.get(e.keyCode)()
   }, 300)
+
+  const _exportData = () =>exportData(new Array(maxListLength).fill(1).map((v,i)=>{
+      return {
+        "id": i+1,
+        "contSource": sourceList[i],
+        "contTarget": targetList[i]
+      }
+    }))
 
   const renderHeader = () => {
 
@@ -330,7 +494,7 @@ const Align = () => {
       {
         name: '回退',
         icon: '',
-        title: 'Ctrl + Z',
+        title: 'Ctrl + Q',
         onClick: backRecord
       },
       {
@@ -389,14 +553,9 @@ const Align = () => {
     ]
     const rightList = [
       {
-        name: '上传',
-        icon: '',
-        funcCb: () => { }
-      },
-      {
         name: '导出',
         icon: '',
-        funcCb: () => { }
+        onClick: _exportData
       },
     ]
     const renderLi = list => list.map((v, i) => <li key={i} title={v.title} onClick={v.onClick}>{v.name}</li>)
@@ -418,7 +577,7 @@ const Align = () => {
       e.target.contentEditable = boo
       e.target.style.boxShadow = boxShadow
       if (event) {
-        // clearAllNodeSelected()
+        clearAllNodeSelected()
         addNodesSelected(e.target.parentNode)
         e.target[event]()
         const range = window.getSelection()
@@ -427,12 +586,22 @@ const Align = () => {
       }
     }
 
-    const isSource = direction => direction === SOURCE
-
-    const updateData = debounce((e, direction, id) => {
-      // changeIsContentEditable(e, false, 'none')
-      const _data = produce(isSource(direction) ? sourceList : targetList, draft => draft.map((v, i) => i === id ? e.target.innerText : v))
-      isSource(direction) ? setSourceList(_data) : setTargetList(_data)
+    const updateData = debounce((e, dataBar, id) => {
+      if (isSplit.current) {
+        isSplit.current = false
+        return void (0)
+      }
+      changeIsContentEditable(e, false, 'none')
+      const params = {}
+      params[`afterCont${dataBar}s`] = [e.target.innerText]
+      setCache({
+        type: 'update',
+        dataBar,
+        startId: id,
+        endId: id,
+        ...updateCb(dataBar, id, id, [e.target.innerText], [e.target.innerText]),
+        ...params
+      })
     })
 
     const clearAllNodeSelected = () => document.querySelectorAll(`.${SELECTED}`).forEach(v => v.classList.remove(SELECTED))
@@ -574,6 +743,16 @@ const Align = () => {
       replaceAllKeyWord={replaceAllKeyWord}
     />
   </div>
+}
+
+Align.defaultProps = {
+  dataList: [],
+  exportData:()=>{}
+}
+
+Align.propTypes = {
+  dataList: PropTypes.array,
+  exportData: PropTypes.func
 }
 
 export default Align

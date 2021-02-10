@@ -1,0 +1,57 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[` <Align /> snapshot 1`] = `
+"<div className=\\"align-tool\\">
+  <section className=\\"align-tool-header\\">
+    <ul>
+      <li title=\\"Ctrl + Q\\" onClick={[Function: backRecord]}>
+        回退
+      </li>
+      <li title=\\"Ctrl + Y\\" onClick={[Function: forwardRecord]}>
+        前进
+      </li>
+      <li title=\\"Ctrl + M\\" onClick={[Function: mergeRow]}>
+        合并
+      </li>
+      <li title=\\"Ctrl + Enter\\" onClick={[Function: splitRow]}>
+        拆分
+      </li>
+      <li title=\\"Ctrl + ↑\\" onClick={[Function: moveUpRow]}>
+        上移
+      </li>
+      <li title=\\"Ctrl + ↓\\" onClick={[Function: moveDownRow]}>
+        下移
+      </li>
+      <li title=\\"Ctrl + B\\" onClick={[Function: exchangeRow]}>
+        调换
+      </li>
+      <li title=\\"Ctrl + I\\" onClick={[Function: insertRow]}>
+        插入
+      </li>
+      <li title=\\"Ctrl+Delete\\" onClick={[Function: deleteRow]}>
+        删除
+      </li>
+      <li title={[undefined]} onClick={[Function: onClick]}>
+        查找和替换
+      </li>
+    </ul>
+    <ul>
+      <li title={[undefined]} onClick={[Function: _exportData]}>
+        导出
+      </li>
+    </ul>
+  </section>
+  <section className=\\"align-tool-content-wrap\\">
+    <div className=\\"align-tool-content\\">
+      <table cellSpacing=\\"0\\" cellPadding=\\"0\\">
+        <tbody />
+      </table>
+    </div>
+  </section>
+  <section className=\\"align-tool-footer\\">
+    总行数：
+    0
+  </section>
+  <Memo() visible={false} onClose={[Function: onCloseModal]} searchKeyWord={[Function: searchKeyWord]} replaceAllKeyWord={[Function: replaceAllKeyWord]} />
+</div>"
+`;
