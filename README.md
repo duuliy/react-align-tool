@@ -5,4 +5,4 @@ Alignment tool, the scene is very small, currently known translation and documen
 
 > example <br/>
 
-![mini mode](https://github.com/duuliy/react-align-tool/blob/master/assetsImg/example.png?raw=true)
+![example](https://raw.githubusercontent.com/duuliy/react-align-tool/main/assetsImg/example.png)
