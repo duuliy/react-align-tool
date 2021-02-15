@@ -11,6 +11,7 @@ import './style.less'
 import './restCss.less'
 import { produce } from 'immer'
 import PropTypes from 'prop-types'
+import purify from "dompurify"
 
 const PrefixCls = 'align-tool'
 const SOURCE = 'Source'
@@ -662,7 +663,7 @@ const Align = ({ dataList, exportData }) => {
           data-bar={`${direction}-${id}`}
           onDoubleClick={onDoubleClick}
           onBlur={onBlur}
-          dangerouslySetInnerHTML={{ __html: text }}
+          dangerouslySetInnerHTML={{ __html: purify.sanitize(text) }}
         />
       </td>
     }
