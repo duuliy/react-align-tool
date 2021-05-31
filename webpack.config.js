@@ -24,6 +24,9 @@ module.exports = () => {
       chunkFilename: `${version}/[name].[contenthash].js`,
       publicPath: isDev ? '/' : './',
     },
+    watchOptions: {
+      ignored: /node_modules/,
+    },
     devServer: {
       compress: !isDev,
       clientLogLevel: 'warning',
@@ -79,6 +82,9 @@ module.exports = () => {
               loader: "less-loader",
               options: {
                 sourceMap: false
+                // lessOptions: {
+                //   javascriptEnabled: true
+                // }
               }
             }
             ],
