@@ -81,10 +81,7 @@ module.exports = () => {
             {
               loader: "less-loader",
               options: {
-                sourceMap: false,
-                // lessOptions: {
-                //   javascriptEnabled: true
-                // }
+                sourceMap: false
               }
             }
             ],
@@ -112,52 +109,6 @@ module.exports = () => {
       extensions: [".js", ".jsx", ".json", ".less", ".css", ".ts", ".tsx"],
       enforceExtension: false,
     },
-    // optimization: {
-    //   concatenateModules: true,
-    //   splitChunks: {
-    //     chunks: "all",
-    //     maxInitialRequests: Infinity,
-    //     minSize: 0,
-    //     cacheGroups: {
-    //       vendors: {
-    //         test: /[\\/]node_modules[\\/]/,
-    //         name: "vendors"
-    //       },
-    //       commons: {
-    //         name: "commons",
-    //         minChunks: 2,
-    //         chunks: "initial"
-    //       },
-    //       styles: {
-    //         name: "styles",
-    //         test: /\.css$/,
-    //         chunks: "all",
-    //         minChunks: 2,
-    //         enforce: true
-    //       }
-    //     }
-    //   },
-    //   minimizer: isDev
-    //     ? []
-    //     : [
-    //       new UglifyJsPlugin({
-    //         cache: true,
-    //         parallel: true,
-    //         sourceMap: false,
-    //         uglifyOptions: {
-    //           compress: {
-    //             drop_debugger: false,
-    //             drop_console: false  //调试打时开
-    //           }
-    //         }
-    //       }),
-    //       new OptimizeCssAssetsPlugin({
-    //         cssProcessor: require("cssnano"),
-    //         cssProcessorOptions: { discardComments: { removeAll: true } },
-    //         canPrint: true
-    //       })
-    //     ],
-    // },
     plugins: [
       new ProgressBarPlugin(),
       new webpack.DefinePlugin({
