@@ -1,28 +1,28 @@
 const path = require('path')
+const fs = require('fs')
 const webpack = require("webpack")
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const ProgressBarPlugin = require("progress-bar-webpack-plugin")
 const { CleanWebpackPlugin } = require('clean-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
-const OptimizeCssAssetsPlugin = require("optimize-css-assets-webpack-plugin")
-const UglifyJsPlugin = require("uglifyjs-webpack-plugin")
-const HardSourceWebpackPlugin = require('hard-source-webpack-plugin')
 
 const env = process.env.NODE_ENV || 'dev'
 const isDev = env === 'dev'
-const version = '1.0.0'
+const version = 'reactAlginTool-1.0.0'
 const lessModuleRegex = /\.module\.less$/
 
 module.exports = () => {
   const options = {
-    target: "web",
     mode: isDev ? 'development' : 'production',
-    entry: isDev ? './example/index' : './src/align',
+    entry: isDev ? './example/index' : path.resolve(__dirname, 'src/index'),
     output: {
-      filename: '[name].[hash].js',
-      path: path.join(__dirname, 'dist'),
-      chunkFilename: `${version}/[name].[contenthash].js`,
       publicPath: isDev ? '/' : './',
+      library: 'reactAlginTool',
+      libraryTarget: 'umd', // 注意这里按 umd 模块规范打包
+      umdNamedDefine: true, // 是否将模块名称作为 AMD 输出的命名空间
+      path: path.resolve(__dirname, 'dist'),
+      filename: '[name].min.js',
+      libraryExport: 'default', // 将default默认导出, 不然会 window['xx'].default
     },
     watchOptions: {
       ignored: /node_modules/,
@@ -81,7 +81,7 @@ module.exports = () => {
             {
               loader: "less-loader",
               options: {
-                sourceMap: false
+                sourceMap: false,
                 // lessOptions: {
                 //   javascriptEnabled: true
                 // }
@@ -105,19 +105,6 @@ module.exports = () => {
             },
             'postcss-loader',
           ],
-        },
-        {
-          test: /\.(jpg|jpeg|png|gif|cur|ico|eot|ttf|svg|woff|woff2)$/,
-          exclude: [path.resolve(__dirname, './src/assets/icons')],
-          use: [
-            {
-              loader: "file-loader",
-              options: {
-                name: `${version}/[name].[hash:8].[ext]`,
-                limit: 50000
-              }
-            }
-          ]
         }
       ]
     },
@@ -125,52 +112,52 @@ module.exports = () => {
       extensions: [".js", ".jsx", ".json", ".less", ".css", ".ts", ".tsx"],
       enforceExtension: false,
     },
-    optimization: {
-      concatenateModules: true,
-      splitChunks: {
-        chunks: "all",
-        maxInitialRequests: Infinity,
-        minSize: 0,
-        cacheGroups: {
-          vendors: {
-            test: /[\\/]node_modules[\\/]/,
-            name: "vendors"
-          },
-          commons: {
-            name: "commons",
-            minChunks: 2,
-            chunks: "initial"
-          },
-          styles: {
-            name: "styles",
-            test: /\.css$/,
-            chunks: "all",
-            minChunks: 2,
-            enforce: true
-          }
-        }
-      },
-      minimizer: isDev
-        ? []
-        : [
-          new UglifyJsPlugin({
-            cache: true,
-            parallel: true,
-            sourceMap: false,
-            uglifyOptions: {
-              compress: {
-                drop_debugger: false,
-                drop_console: false  //调试打时开
-              }
-            }
-          }),
-          new OptimizeCssAssetsPlugin({
-            cssProcessor: require("cssnano"),
-            cssProcessorOptions: { discardComments: { removeAll: true } },
-            canPrint: true
-          })
-        ],
-    },
+    // optimization: {
+    //   concatenateModules: true,
+    //   splitChunks: {
+    //     chunks: "all",
+    //     maxInitialRequests: Infinity,
+    //     minSize: 0,
+    //     cacheGroups: {
+    //       vendors: {
+    //         test: /[\\/]node_modules[\\/]/,
+    //         name: "vendors"
+    //       },
+    //       commons: {
+    //         name: "commons",
+    //         minChunks: 2,
+    //         chunks: "initial"
+    //       },
+    //       styles: {
+    //         name: "styles",
+    //         test: /\.css$/,
+    //         chunks: "all",
+    //         minChunks: 2,
+    //         enforce: true
+    //       }
+    //     }
+    //   },
+    //   minimizer: isDev
+    //     ? []
+    //     : [
+    //       new UglifyJsPlugin({
+    //         cache: true,
+    //         parallel: true,
+    //         sourceMap: false,
+    //         uglifyOptions: {
+    //           compress: {
+    //             drop_debugger: false,
+    //             drop_console: false  //调试打时开
+    //           }
+    //         }
+    //       }),
+    //       new OptimizeCssAssetsPlugin({
+    //         cssProcessor: require("cssnano"),
+    //         cssProcessorOptions: { discardComments: { removeAll: true } },
+    //         canPrint: true
+    //       })
+    //     ],
+    // },
     plugins: [
       new ProgressBarPlugin(),
       new webpack.DefinePlugin({
@@ -186,34 +173,45 @@ module.exports = () => {
             name: "runtime"
           }
         }
-      }),
-      isDev&&new HtmlWebpackPlugin({
-        title: "align-tool",
-        filename: "index.html",
-        inject: true,
-        template: path.resolve(__dirname, "./example/index.html"),
-        hash: true
       })
     ],
   }
   if (isDev) {
-    options.plugins = options.plugins.concat([new webpack.HotModuleReplacementPlugin()])
+    options.plugins = options.plugins.concat([
+      new webpack.HotModuleReplacementPlugin(),
+      new HtmlWebpackPlugin({
+        title: "align-tool",
+        filename: "index.html",
+        inject: true,
+        template: path.resolve(__dirname, "./example/index.html"),
+        hash: false
+      })
+    ])
     options.devtool = 'cheap-module-eval-source-map'
   } else {
+    options.externals = {
+      react: {
+        root: 'React',
+        commonjs2: 'react',
+        commonjs: 'react',
+        amd: 'react',
+      },
+      'react-dom': {
+        root: 'ReactDOM',
+        commonjs2: 'react-dom',
+        commonjs: 'react-dom',
+        amd: 'react-dom',
+      },
+    }
     options.plugins = options.plugins.concat([
       new CleanWebpackPlugin(),
-      new HardSourceWebpackPlugin(),
       new MiniCssExtractPlugin({
-        filename: `${version}/[name].css`,
-        chunkFilename: `${version}/[name].[contenthash].css`,
+        filename: 'assets/[name].css',
+        chunkFilename: 'assets/[name].css',
       }),
+      new webpack.BannerPlugin(`${version} \n ${fs.readFileSync(path.resolve(__dirname, './LICENSE'))}`)
     ])
   }
 
   return options
 }
-
-
-
-
-
