@@ -6,3 +6,5 @@ module.exports = {
     'subject-case': [0, 'never']
   }
 }
+
+// "pre-commit": "yarn test" 备用
