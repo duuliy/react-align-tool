@@ -1,6 +1,6 @@
 import React from 'react'
 import dataList from './mockData.json'
-import Align from '../src/index'
+import Align from '../src/index.ts'
 
 
 const Example=()=>{
